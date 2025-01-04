@@ -14,6 +14,18 @@ function getElementTextByXPath(xpath) {
     return result.singleNodeValue ? result.singleNodeValue.textContent.trim() : null;
 }
 
+function getImageUrlByXPath(xpath) {
+    const result = document.evaluate(
+        xpath,
+        document,
+        null,
+        XPathResult.FIRST_ORDERED_NODE_TYPE,
+        null
+    );
+    return result.singleNodeValue ? result.singleNodeValue.src : null;
+}
+
+
 function isPlayingSimple() {
     // Invia il messaggio "isplaying" al server
     const message = {
@@ -33,7 +45,10 @@ function isPlaying() {
     const message = {
         type: 'PLAYER_STATE',
         data: {
-            state: Spicetify.Player.isPlaying() ? "true" : "false"
+            state: Spicetify.Player.isPlaying() ? "true" : "false",
+            repeat: Spicetify.Player.getRepeat(),
+            shuffle: Spicetify.Player.getShuffle(),
+            mute: Spicetify.Player.getMute(),
         }
     };
 
@@ -53,43 +68,37 @@ Spicetify.Player.addEventListener("onplaypause", async () => {
 });
 
 // Funzione per inviare il progresso della traccia ogni secondo solo se la traccia è in riproduzione
-function sendProgressEverySecond() {
-    setInterval(async () => {
-        if (Spicetify.Player.isPlaying()) {
-            var percentage = await Spicetify.Player.getProgressPercent();
-            percentage = Math.floor(percentage * 100); // Moltiplica la percentuale per 100 e rimuovi le cifre decimali
-            var progress = await Spicetify.Player.getProgress();
-            var totalSeconds = Math.floor(progress / 1000);
-            var hours = Math.floor(totalSeconds / 3600);
-            var minutes = Math.floor((totalSeconds % 3600) / 60);
-            var seconds = totalSeconds % 60;
+async function sendProgress() {
+    if (Spicetify.Player.isPlaying()) {
+        var percentage = await Spicetify.Player.getProgressPercent();
+        percentage = Math.floor(percentage * 100); // Moltiplica la percentuale per 100 e rimuovi le cifre decimali
+        var progress = await Spicetify.Player.getProgress();
+        var totalSeconds = Math.floor(progress / 1000);
+        var hours = Math.floor(totalSeconds / 3600);
+        var minutes = Math.floor((totalSeconds % 3600) / 60);
+        var seconds = totalSeconds % 60;
 
-            // Aggiungi uno zero davanti ai secondi se sono cifre singole
-            var formattedSeconds = String(seconds).padStart(2, '0');
-            var formattedMinutes = hours > 0 ? String(minutes).padStart(2, '0') : String(minutes);
-            var formattedProgress = hours > 0 
-                ? `${hours}:${formattedMinutes}:${formattedSeconds}` 
-                : `${minutes}:${formattedSeconds}`;
+        // Aggiungi uno zero davanti ai secondi se sono cifre singole
+        var formattedSeconds = String(seconds).padStart(2, '0');
+        var formattedMinutes = hours > 0 ? String(minutes).padStart(2, '0') : String(minutes);
+        var formattedProgress = hours > 0
+            ? `${hours}:${formattedMinutes}:${formattedSeconds}`
+            : `${minutes}:${formattedSeconds}`;
 
-            console.log(formattedProgress);
-            console.log(percentage);
+        console.log(formattedProgress);
+        console.log(percentage);
 
-            const message = {
-                type: 'TRACK_PROGRESS',
-                data: {
-                    progress: formattedProgress,
-                    percentage: percentage
-                }
-            };
+        const message = {
+            type: 'TRACK_PROGRESS',
+            data: {
+                progress: formattedProgress,
+                percentage: percentage
+            }
+        };
 
-            ws.send(JSON.stringify(message));
-        }
-    }, 1000); // Esegui ogni secondo
+        ws.send(JSON.stringify(message));
+    }
 }
-
-// Inizia a inviare il progresso della traccia ogni secondo
-sendProgressEverySecond();
-
 
 // Funzione per ottenere le informazioni della traccia corrente e inviarle
 async function sendTrackInfo() {
@@ -97,9 +106,12 @@ async function sendTrackInfo() {
     const trackNameXPath = '/html/body/div[3]/div/div[2]/div[3]/footer/div/div[1]/div/div[2]/div[1]/div/div/div/div/span/a';
     const trackArtistsXPath = '/html/body/div[3]/div/div[2]/div[3]/footer/div/div[1]/div/div[2]/div[3]/div/div/div/div';
     const trackDurationXpath = '/html/body/div[3]/div/div[2]/div[3]/footer/div/div[2]/div/div[2]/div[3]'
+    const trackImageXPath = '/html/body/div[3]/div/div[2]/div[3]/footer/div/div[1]/div/div[1]/div/button/div/div/img';
+
     const trackName = getElementTextByXPath(trackNameXPath);
     const trackArtists = getElementTextByXPath(trackArtistsXPath);
     const trackDuration = getElementTextByXPath(trackDurationXpath);
+    const trackImgUrl = getImageUrlByXPath(trackImageXPath);
 
     if (trackName && trackArtists) {
 
@@ -108,7 +120,8 @@ async function sendTrackInfo() {
             data: {
                 trackName: trackName,
                 trackArtists: trackArtists,
-                trackDuration: trackDuration
+                trackDuration: trackDuration,
+                trackImage: trackImgUrl
             }
         };
         // Invia l'oggetto come stringa JSON
@@ -159,6 +172,26 @@ async function executeCommand(message) {
             case "isplaying":
                 await isPlaying();
                 response.data.message = "Checked playback status";
+                break;
+            case "trackprogress":
+                sendProgress();
+                response.data.message = "Sending progress every second";
+                break;
+            case "mute":
+                await Spicetify.Player.setMute(true);
+                response.data.message = "Muted audio";
+                break;
+            case "unmute":
+                await Spicetify.Player.setMute(false);
+                response.data.message = "Unmuted audio";
+                break;
+            case "volumeup":
+                await Spicetify.Player.increaseVolume();
+                response.data.message = "Increased volume";
+                break;
+            case "volumedown":
+                await Spicetify.Player.decreaseVolume();
+                response.data.message = "Decreased volume";
                 break;
             default:
                 response.data.status = 'error';
