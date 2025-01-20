@@ -57,7 +57,7 @@ function isPlaying() {
     sendTrackInfo();
 }
 
-// Aggiungi un listener per rilevare comportamneti del player
+// Listener per rilevare comportamneti del player
 Spicetify.Player.addEventListener("songchange", async () => {
     await new Promise(resolve => setTimeout(resolve, 500));
     await sendTrackInfo();
