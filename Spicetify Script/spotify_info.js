@@ -193,6 +193,14 @@ async function executeCommand(message) {
                 await Spicetify.Player.decreaseVolume();
                 response.data.message = "Decreased volume";
                 break;
+            case "shuffle":
+                await Spicetify.Player.toggleShuffle();
+                response.data.message = "Change shuffle method";
+                break;
+            case "repeat":
+                await Spicetify.Player.toggleRepeat();
+                response.data.message = "Change repat method"
+                break;
             default:
                 response.data.status = 'error';
                 response.data.message = "Unknown command";
