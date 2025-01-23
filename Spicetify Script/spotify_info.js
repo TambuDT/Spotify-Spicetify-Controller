@@ -57,7 +57,7 @@ function isPlaying() {
     sendTrackInfo();
 }
 
-// Listener per rilevare comportamneti del player
+// Aggiungi un listener per rilevare comportamneti del player
 Spicetify.Player.addEventListener("songchange", async () => {
     await new Promise(resolve => setTimeout(resolve, 500));
     await sendTrackInfo();
@@ -112,6 +112,7 @@ async function sendTrackInfo() {
     const trackArtists = getElementTextByXPath(trackArtistsXPath);
     const trackDuration = getElementTextByXPath(trackDurationXpath);
     const trackImgUrl = getImageUrlByXPath(trackImageXPath);
+    const trackHeart = Spicetify.Player.getHeart()
 
     if (trackName && trackArtists) {
 
@@ -121,7 +122,8 @@ async function sendTrackInfo() {
                 trackName: trackName,
                 trackArtists: trackArtists,
                 trackDuration: trackDuration,
-                trackImage: trackImgUrl
+                trackImage: trackImgUrl,
+                trackHeart: trackHeart
             }
         };
         // Invia l'oggetto come stringa JSON
@@ -142,79 +144,101 @@ async function executeCommand(message) {
         }
     };
 
-    try {
-        // Gestione del comando ricevuto
-        switch (command) {
-            case "play":
-                await Spicetify.Player.play();
-                await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
-                await isPlayingSimple();
-                response.data.message = "Playback started";
-                break;
-            case "pause":
-                await Spicetify.Player.pause();
-                await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
-                await isPlayingSimple();
-                response.data.message = "Playback paused";
-                break;
-            case "next":
-                await Spicetify.Player.next();
-                await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
-                await isPlaying();
-                response.data.message = "Skipped to next track";
-                break;
-            case "previous":
-                await Spicetify.Player.back();
-                await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
-                await isPlaying();
-                response.data.message = "Went to previous track";
-                break;
-            case "isplaying":
-                await isPlaying();
-                response.data.message = "Checked playback status";
-                break;
-            case "trackprogress":
-                sendProgress();
-                response.data.message = "Sending progress every second";
-                break;
-            case "mute":
-                await Spicetify.Player.setMute(true);
-                response.data.message = "Muted audio";
-                break;
-            case "unmute":
-                await Spicetify.Player.setMute(false);
-                response.data.message = "Unmuted audio";
-                break;
-            case "volumeup":
-                await Spicetify.Player.increaseVolume();
-                response.data.message = "Increased volume";
-                break;
-            case "volumedown":
-                await Spicetify.Player.decreaseVolume();
-                response.data.message = "Decreased volume";
-                break;
-            case "shuffle":
-                await Spicetify.Player.toggleShuffle();
-                response.data.message = "Change shuffle method";
-                break;
-            case "repeat":
-                await Spicetify.Player.toggleRepeat();
-                response.data.message = "Change repat method"
-                break;
-            default:
-                response.data.status = 'error';
-                response.data.message = "Unknown command";
-                console.warn("Comando non riconosciuto:", command);
-                break;
-        }
-    } catch (error) {
-        // Gestione degli errori durante l'esecuzione del comando
-        response.data.status = 'error';
-        response.data.message = `Error executing command: ${error.message}`;
-    }
+    async function extrackColors() {
+        const currentTrack = Spicetify.Player.data.item;
+        const colors = await Spicetify.colorExtractor(currentTrack.uri);
+        const message = {
+            type: 'COLORS_REQUEST', // Etichetta per indicare che è una risposta
+            data: {
+                colors: colors,
+            }
+        };
+        // Invia l'oggetto come stringa JSON
+        ws.send(JSON.stringify(message));
+        console.log(`Messaggio inviato da spicetify: ${JSON.stringify(message.data)}`);
+}
 
-    // Invia il messaggio di risposta al server
-    ws.send(JSON.stringify(response));
+try {
+    // Gestione del comando ricevuto
+    switch (command) {
+        case "play":
+            await Spicetify.Player.play();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
+            await isPlayingSimple();
+            response.data.message = "Playback started";
+            break;
+        case "pause":
+            await Spicetify.Player.pause();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
+            await isPlayingSimple();
+            response.data.message = "Playback paused";
+            break;
+        case "next":
+            await Spicetify.Player.next();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
+            await isPlaying();
+            response.data.message = "Skipped to next track";
+            break;
+        case "previous":
+            await Spicetify.Player.back();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
+            await isPlaying();
+            response.data.message = "Went to previous track";
+            break;
+        case "isplaying":
+            await isPlaying();
+            response.data.message = "Checked playback status";
+            break;
+        case "trackprogress":
+            sendProgress();
+            response.data.message = "Sending progress every second";
+            break;
+        case "mute":
+            await Spicetify.Player.setMute(true);
+            response.data.message = "Muted audio";
+            break;
+        case "unmute":
+            await Spicetify.Player.setMute(false);
+            response.data.message = "Unmuted audio";
+            break;
+        case "volumeup":
+            await Spicetify.Player.increaseVolume();
+            response.data.message = "Increased volume";
+            break;
+        case "volumedown":
+            await Spicetify.Player.decreaseVolume();
+            response.data.message = "Decreased volume";
+            break;
+        case "shuffle":
+            await Spicetify.Player.toggleShuffle();
+            response.data.message = "Change shuffle method";
+            break;
+        case "repeat":
+            await Spicetify.Player.toggleRepeat();
+            response.data.message = "Change repat method";
+            break;
+        case "colors":
+            await extrackColors();
+            response.data.message = "Color request";
+            break;
+        case "heart":
+            await Spicetify.Player.toggleHeart();
+            response.data.message = "Heart toggled";
+            break;
+        default:
+            response.data.status = 'error';
+            response.data.message = "Unknown command";
+            console.warn("Comando non riconosciuto:", command);
+            break;
+    }
+} catch (error) {
+    // Gestione degli errori durante l'esecuzione del comando
+    response.data.status = 'error';
+    response.data.message = `Error executing command: ${error.message}`;
+}
+
+// Invia il messaggio di risposta al server
+ws.send(JSON.stringify(response));
 }
 
 
