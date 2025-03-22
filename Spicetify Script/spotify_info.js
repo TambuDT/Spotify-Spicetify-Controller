@@ -103,10 +103,10 @@ async function sendProgress() {
 // Funzione per ottenere le informazioni della traccia corrente e inviarle
 async function sendTrackInfo() {
     // Recupera i dati dal DOM
-    const trackNameXPath = '/html/body/div[3]/div/div[2]/div[3]/footer/div/div[1]/div/div[2]/div[1]/div/div/div/div/span/a';
-    const trackArtistsXPath = '/html/body/div[3]/div/div[2]/div[3]/footer/div/div[1]/div/div[2]/div[3]/div/div/div/div';
-    const trackDurationXpath = '/html/body/div[3]/div/div[2]/div[3]/footer/div/div[2]/div/div[2]/div[3]'
-    const trackImageXPath = '/html/body/div[3]/div/div[2]/div[3]/footer/div/div[1]/div/div[1]/div/button/div/div/img';
+    const trackNameXPath = '/html/body/div[3]/div/div[2]/div[4]/footer/div/div[1]/div/div[2]/div[1]/div/div/div/div/span/a';
+    const trackArtistsXPath = '/html/body/div[3]/div/div[2]/div[4]/footer/div/div[1]/div/div[2]/div[3]/div/div/div/div';
+    const trackDurationXpath = '/html/body/div[3]/div/div[2]/div[4]/footer/div/div[2]/div/div[2]/div[3]'
+    const trackImageXPath = '/html/body/div[3]/div/div[2]/div[4]/footer/div/div[1]/div/div[1]/div/button/div/div/img';
 
     const trackName = getElementTextByXPath(trackNameXPath);
     const trackArtists = getElementTextByXPath(trackArtistsXPath);
@@ -114,6 +114,9 @@ async function sendTrackInfo() {
     const trackImgUrl = getImageUrlByXPath(trackImageXPath);
     const trackHeart = Spicetify.Player.getHeart()
 
+
+    console.log(trackName)
+    console.log(trackArtists)
     if (trackName && trackArtists) {
 
         const message = {
@@ -275,7 +278,6 @@ function connect() {
             case 'COMMAND':
                 executeCommand(message.data.command);
                 break;
-
             case 'TRACK_INFO':
                 sendTrackInfo();
             default:
