@@ -2,6 +2,95 @@
 let ws;
 let port = 8765;
 
+
+
+const Ready = async () => {
+    const message = {
+        type: 'SPOTIFYREADY',
+        data: {
+            state: true,
+        }
+    };
+    ws.send(JSON.stringify(message));
+    console.log('Messaggio di ready inviato');
+}
+
+const startMesagging = async () => {
+    const message = {
+        type: 'STARTMESSAGGING',
+        data: {
+            state: true,
+        }
+    };
+    ws.send(JSON.stringify(message));
+}
+
+//funzione epr ottenere tutte le playlist dell'utente
+async function waitForSpicetify() {
+    return new Promise(resolve => {
+        if (Spicetify?.CosmosAsync) {
+            resolve();
+        } else {
+            const interval = setInterval(() => {
+                if (Spicetify?.CosmosAsync) {
+                    clearInterval(interval);
+                    resolve();
+                }
+            }, 100);
+        }
+    });
+}
+
+
+async function getPreferredSongs() {
+    await waitForSpicetify();
+
+    const songList = await Spicetify.CosmosAsync.get("https://api.spotify.com/v1/me/tracks");
+    console.log("Brani che ti piacciono:", songList);
+
+    const playlist = await Spicetify.CosmosAsync.get("https://api.spotify.com/v1/me/playlists?limit=50");
+
+    // Creiamo l'array semplificato
+    const piPlaylist = playlist.items.map(item => ({
+        image: item.images?.[0]?.url || '',      // prima immagine o vuota
+        name: item.name || 'Unnamed',            // nome playlist
+        link: item.external_urls?.spotify || '', // link Spotify
+    }));
+
+    const messagep = {
+        type: 'PLAYLISTS_INFO',
+        data: {
+            playlists: piPlaylist
+        }
+    };
+    // Invia l'oggetto come stringa JSON
+    ws.send(JSON.stringify(messagep));
+
+    const artists = await Spicetify.CosmosAsync.get("https://api.spotify.com/v1/me/following?type=artist&limit=50");
+
+    // Creo array semplificato artisti
+    const piArtista = artists.artists.items.map(item => ({
+        image: item.images?.[0]?.url || '',      // prima immagine o vuota
+        name: item.name || 'Unnamed',            // nome artista
+        link: item.external_urls?.spotify || '', // link Spotify    
+    }))
+
+    const messagea = {
+        type: 'ARTISTS_INFO',
+        data: {
+            artists: piArtista
+        }
+    };
+    // Invia l'oggetto come stringa JSON
+    ws.send(JSON.stringify(messagea));
+
+    console.log("Lista delle playlist:", piPlaylist);
+    console.log("Artisti che segui:", piArtista);
+
+}
+
+
+
 // Funzione per ottenere il testo di un elemento tramite XPath
 function getElementTextByXPath(xpath) {
     const result = document.evaluate(
@@ -24,6 +113,45 @@ function getImageUrlByXPath(xpath) {
     );
     return result.singleNodeValue ? result.singleNodeValue.src : null;
 }
+
+// Funzione per ottenere le informazioni della traccia corrente e inviarle
+async function sendTrackInfo() {
+    // Recupera i dati dal DOM
+    const trackNameXPath = '//*[@id="main"]/div/div[2]/div[4]/aside/div/div[1]/div/div[2]/div[1]/div/span/span/div/span/a';
+    const trackArtistsXPath = '//*[@id="main"]/div/div[2]/div[4]/aside/div/div[1]/div/div[2]/div[3]/div/span/span/div';
+    const trackDurationXpath = '//*[@id="main"]/div/div[2]/div[4]/aside/div/div[2]/div/div[2]/div[3]'
+    const trackImageXPath = '//*[@id="main"]/div/div[2]/div[4]/aside/div/div[1]/div/div[1]/div/button/div/div/img';
+
+
+    const trackName = getElementTextByXPath(trackNameXPath);
+    const trackArtists = getElementTextByXPath(trackArtistsXPath);
+    const trackDuration = getElementTextByXPath(trackDurationXpath);
+    const trackImgUrl = getImageUrlByXPath(trackImageXPath);
+    const trackHeart = Spicetify.Player.getHeart()
+
+
+    console.log(trackName)
+    console.log(trackArtists)
+    if (trackName && trackArtists) {
+
+        const message = {
+            type: 'TRACK_INFO',
+            data: {
+                trackName: trackName,
+                trackArtists: trackArtists,
+                trackDuration: trackDuration,
+                trackImage: trackImgUrl,
+                trackHeart: trackHeart
+            }
+        };
+        // Invia l'oggetto come stringa JSON
+        ws.send(JSON.stringify(message));
+        console.log(`Messaggio inviato da spicetify: ${JSON.stringify(message.data)}`);
+    } else {
+        console.error('Could not find track information.');
+    }
+}
+
 
 
 function isPlayingSimple() {
@@ -54,7 +182,6 @@ function isPlaying() {
 
     ws.send(JSON.stringify(message));
     console.log(`Messaggio inviato da spicetify: ${JSON.stringify(message.data.state)}`);
-    sendTrackInfo();
 }
 
 // Aggiungi un listener per rilevare comportamneti del player
@@ -100,42 +227,6 @@ async function sendProgress() {
     }
 }
 
-// Funzione per ottenere le informazioni della traccia corrente e inviarle
-async function sendTrackInfo() {
-    // Recupera i dati dal DOM
-    const trackNameXPath = '/html/body/div[3]/div/div[2]/div[4]/footer/div/div[1]/div/div[2]/div[1]/div/div/div/div/span/a';
-    const trackArtistsXPath = '/html/body/div[3]/div/div[2]/div[4]/footer/div/div[1]/div/div[2]/div[3]/div/div/div/div';
-    const trackDurationXpath = '/html/body/div[3]/div/div[2]/div[4]/footer/div/div[2]/div/div[2]/div[3]'
-    const trackImageXPath = '/html/body/div[3]/div/div[2]/div[4]/footer/div/div[1]/div/div[1]/div/button/div/div/img';
-
-    const trackName = getElementTextByXPath(trackNameXPath);
-    const trackArtists = getElementTextByXPath(trackArtistsXPath);
-    const trackDuration = getElementTextByXPath(trackDurationXpath);
-    const trackImgUrl = getImageUrlByXPath(trackImageXPath);
-    const trackHeart = Spicetify.Player.getHeart()
-
-
-    console.log(trackName)
-    console.log(trackArtists)
-    if (trackName && trackArtists) {
-
-        const message = {
-            type: 'TRACK_INFO',
-            data: {
-                trackName: trackName,
-                trackArtists: trackArtists,
-                trackDuration: trackDuration,
-                trackImage: trackImgUrl,
-                trackHeart: trackHeart
-            }
-        };
-        // Invia l'oggetto come stringa JSON
-        ws.send(JSON.stringify(message));
-        console.log(`Messaggio inviato da spicetify: ${JSON.stringify(message.data)}`);
-    } else {
-        console.error('Could not find track information.');
-    }
-}
 
 
 async function executeCommand(message) {
@@ -159,89 +250,97 @@ async function executeCommand(message) {
         // Invia l'oggetto come stringa JSON
         ws.send(JSON.stringify(message));
         console.log(`Messaggio inviato da spicetify: ${JSON.stringify(message.data)}`);
-}
-
-try {
-    // Gestione del comando ricevuto
-    switch (command) {
-        case "play":
-            await Spicetify.Player.play();
-            await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
-            await isPlayingSimple();
-            response.data.message = "Playback started";
-            break;
-        case "pause":
-            await Spicetify.Player.pause();
-            await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
-            await isPlayingSimple();
-            response.data.message = "Playback paused";
-            break;
-        case "next":
-            await Spicetify.Player.next();
-            await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
-            await isPlaying();
-            response.data.message = "Skipped to next track";
-            break;
-        case "previous":
-            await Spicetify.Player.back();
-            await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
-            await isPlaying();
-            response.data.message = "Went to previous track";
-            break;
-        case "isplaying":
-            await isPlaying();
-            response.data.message = "Checked playback status";
-            break;
-        case "trackprogress":
-            sendProgress();
-            response.data.message = "Sending progress every second";
-            break;
-        case "mute":
-            await Spicetify.Player.setMute(true);
-            response.data.message = "Muted audio";
-            break;
-        case "unmute":
-            await Spicetify.Player.setMute(false);
-            response.data.message = "Unmuted audio";
-            break;
-        case "volumeup":
-            await Spicetify.Player.increaseVolume();
-            response.data.message = "Increased volume";
-            break;
-        case "volumedown":
-            await Spicetify.Player.decreaseVolume();
-            response.data.message = "Decreased volume";
-            break;
-        case "shuffle":
-            await Spicetify.Player.toggleShuffle();
-            response.data.message = "Change shuffle method";
-            break;
-        case "repeat":
-            await Spicetify.Player.toggleRepeat();
-            response.data.message = "Change repat method";
-            break;
-        case "colors":
-            await extrackColors();
-            response.data.message = "Color request";
-            break;
-        case "heart":
-            await Spicetify.Player.toggleHeart();
-            response.data.message = "Heart toggled";
-            break;
-        default:
-            response.data.status = 'error';
-            response.data.message = "Unknown command";
-            console.warn("Comando non riconosciuto:", command);
-            break;
     }
-} catch (error) {
-    // Gestione degli errori durante l'esecuzione del comando
-    response.data.status = 'error';
-    response.data.message = `Error executing command: ${error.message}`;
-}
 
-// Invia il messaggio di risposta al server
-ws.send(JSON.stringify(response));
+    try {
+        // Gestione del comando ricevuto
+        switch (command) {
+            case "play":
+                await Spicetify.Player.play();
+                await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
+                await isPlayingSimple();
+                response.data.message = "Playback started";
+                break;
+            case "pause":
+                await Spicetify.Player.pause();
+                await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
+                await isPlayingSimple();
+                response.data.message = "Playback paused";
+                break;
+            case "next":
+                await Spicetify.Player.next();
+                await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
+                await isPlaying();
+                response.data.message = "Skipped to next track";
+                break;
+            case "previous":
+                await Spicetify.Player.back();
+                await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
+                await isPlaying();
+                response.data.message = "Went to previous track";
+                break;
+            case "isplaying":
+                await isPlaying();
+                response.data.message = "Checked playback status";
+                break;
+            case "trackprogress":
+                sendProgress();
+                response.data.message = "Sending progress every second";
+                break;
+            case "mute":
+                await Spicetify.Player.setMute(true);
+                response.data.message = "Muted audio";
+                break;
+            case "unmute":
+                await Spicetify.Player.setMute(false);
+                response.data.message = "Unmuted audio";
+                break;
+            case "volumeup":
+                await Spicetify.Player.increaseVolume();
+                response.data.message = "Increased volume";
+                break;
+            case "volumedown":
+                await Spicetify.Player.decreaseVolume();
+                response.data.message = "Decreased volume";
+                break;
+            case "shuffle":
+                await Spicetify.Player.toggleShuffle();
+                response.data.message = "Change shuffle method";
+                break;
+            case "repeat":
+                await Spicetify.Player.toggleRepeat();
+                response.data.message = "Change repat method";
+                break;
+            case "colors":
+                await extrackColors();
+                response.data.message = "Color request";
+                break;
+            case "heart":
+                await Spicetify.Player.toggleHeart();
+                response.data.message = "Heart toggled";
+                break;
+            case "getplaylists":
+                await getPreferredSongs();
+                response.data.message = "Getting playlists";
+                break;
+            case "trackinfo":
+                await sendTrackInfo();
+                response.data.message = "Sent track info";
+                break;
+            default:
+                response.data.status = 'error';
+                response.data.message = "Unknown command";
+                console.warn("Comando non riconosciuto:", command);
+                break;
+        }
+    } catch (error) {
+        // Gestione degli errori durante l'esecuzione del comando
+        response.data.status = 'error';
+        response.data.message = `Error executing command: ${error.message}`;
+    }
+
+    // Invia il messaggio di risposta al server
+    ws.send(JSON.stringify(response));
 }
 
 
@@ -256,7 +355,7 @@ function connect() {
     ws.onopen = async function () {
         console.log(`Connesso al server sulla porta ${port}`); // Stampa un messaggio di connessione riuscita
         await new Promise(resolve => setTimeout(resolve, 500)); // Aggiungi un ritardo di 500ms
-        await isPlaying();
+        await Ready();
     };
 
     // Evento chiamato quando un messaggio viene ricevuto dal server WebSocket
@@ -280,6 +379,12 @@ function connect() {
                 break;
             case 'TRACK_INFO':
                 sendTrackInfo();
+                break;
+            case 'BOTHREADY':
+                if (message.data.state==true){
+                    startMesagging();
+                }
+                break;
             default:
                 console.log("Tipo di messaggio non riconosciuto");
                 break;
